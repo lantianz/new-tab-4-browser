@@ -1,0 +1,62 @@
+{
+  "compilerOptions": {
+    // 编译目标: ES2020 (支持可选链、空值合并等现代特性)
+    "target": "ES2020",
+
+    // 使用 defineProperty 定义类字段
+    "useDefineForClassFields": true,
+
+    // 包含的库文件
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+
+    // 模块系统: ESNext (支持最新的 ES 模块特性)
+    "module": "ESNext",
+
+    // 跳过库文件的类型检查(加快编译速度)
+    "skipLibCheck": true,
+
+    // 模块解析策略: bundler (适用于 Vite 等现代打包工具)
+    "moduleResolution": "bundler",
+
+    // 允许导入 .ts 扩展名的文件
+    "allowImportingTsExtensions": true,
+
+    // 允许导入 JSON 文件
+    "resolveJsonModule": true,
+
+    // 每个文件作为独立模块(适用于 Vite)
+    "isolatedModules": true,
+
+    // 不生成输出文件(由 Vite 处理)
+    "noEmit": true,
+
+    // JSX 处理方式: preserve (保留 JSX,由 Vite 处理)
+    "jsx": "preserve",
+
+    // 启用严格模式(推荐)
+    "strict": true,
+
+    // 检查未使用的局部变量
+    "noUnusedLocals": true,
+
+    // 检查未使用的参数
+    "noUnusedParameters": true,
+
+    // 检查 switch 语句的 fallthrough
+    "noFallthroughCasesInSwitch": true,
+
+    // 包含 Chrome API 类型定义
+    "types": ["chrome"]
+  },
+
+  // 包含的文件
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
+
+  // 引用其他配置文件
+  "references": [],
+
+  // Vue 编译器选项
+  "vueCompilerOptions": {
+    "globalTypesPath": "node_modules/vue/dist/vue.d.ts"
+  }
+}
