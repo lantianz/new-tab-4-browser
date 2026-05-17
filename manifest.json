@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "新标签页",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "lantianz",
   "description": "新标签页书签管理扩展，支持 WebDAV 刷新与本地缓存。",
   "icons": {
