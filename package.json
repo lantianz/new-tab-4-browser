@@ -1,7 +1,7 @@
 {
-  "name": "chrome-plugin-vue3",
+  "name": "new-tab-bookmarker",
   "version": "1.0.0",
-  "description": "Chrome Extension Template - Vue3 + Vite",
+  "description": "Chrome 新标签页书签管理扩展，支持 WebDAV 刷新与缓存。",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -22,7 +22,11 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "axios": "^1.16.1",
+    "element-plus": "^2.14.0",
     "pinia": "^3.0.4",
+    "unplugin-vue-components": "^32.0.0",
     "vue": "^3.3.4"
   },
   "devDependencies": {

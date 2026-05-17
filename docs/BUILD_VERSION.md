@@ -38,13 +38,13 @@ npm run bv -- 1.0.1
 1. ✅ 自动更新 `package.json` 中的版本号
 2. ✅ 自动更新 `manifest.json` 中的版本号
 3. ✅ 执行 Vite 构建
-4. ✅ 将构建结果移动到 `output/chrome-plugin-vue3_v1.0.1`
+4. ✅ 将构建结果移动到 `output/new-tab-bookmarker_v1.0.1`
 
 **输出结果:**
 
 ```
 output/
-└── chrome-plugin-vue3_v1.0.1/
+└── new-tab-bookmarker_v1.0.1/
     ├── manifest.json
     ├── popup.html
     ├── popup.js
@@ -68,13 +68,13 @@ npm run bv:zip
 
 1. ✅ 自动更新版本号
 2. ✅ 执行 Vite 构建
-3. ✅ 创建 `output/chrome-plugin-vue3_v1.0.1.zip` 压缩包
+3. ✅ 创建 `output/new-tab-bookmarker_v1.0.1.zip` 压缩包
 
 **输出结果:**
 
 ```
 output/
-└── chrome-plugin-vue3_v1.0.1.zip       # ZIP 压缩包
+└── new-tab-bookmarker_v1.0.1.zip       # ZIP 压缩包
 ```
 
 ## 📝 命令格式
@@ -110,7 +110,7 @@ npm run bv -- --zip
 ### 开发模式构建
 
 ```bash
-# 开发模式 - 输出固定名称 chrome-plugin-vue3_dev
+# 开发模式 - 输出固定名称 new-tab-bookmarker_dev
 npm run bv:dev
 ```
 
@@ -186,7 +186,7 @@ npm run bv -- 1.0.3
 ```
 项目根目录/
 └── output/
-    ├── chrome-plugin-vue3_v1.0.1/        # 构建输出目录
+    ├── new-tab-bookmarker_v1.0.1/        # 构建输出目录
     │   ├── manifest.json      # 版本号已更新为 1.0.1
     │   ├── popup.html
     │   ├── popup.js
@@ -194,7 +194,7 @@ npm run bv -- 1.0.3
     │   ├── content.js
     │   ├── icons/
     │   └── assets/
-    └── chrome-plugin-vue3_v1.0.1.zip     # ZIP 压缩包(可选)
+    └── new-tab-bookmarker_v1.0.1.zip     # ZIP 压缩包(可选)
 ```
 
 ## ⚠️ 注意事项
@@ -258,7 +258,7 @@ npm run bv -- 1.0.1
     ↓
 执行 vite build
     ↓
-移动构建结果到 output/chrome-plugin-vue3_v{version}
+移动构建结果到 output/new-tab-bookmarker_v{version}
     ↓
 创建 ZIP(如果指定了 --zip 参数)
     ↓

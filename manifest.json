@@ -1,40 +1,26 @@
 {
   "manifest_version": 3,
-  "name": "A Chrome Extension",
+  "name": "新标签页",
   "version": "1.0.0",
-  "author": "",
-  "description": "A Chrome extension built with Vue3 + Vite",
+  "author": "lantianz",
+  "description": "新标签页书签管理扩展，支持 WebDAV 刷新与本地缓存。",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
   "permissions": [
-    "activeTab",
     "storage"
   ],
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "My Extension",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "content.js"
-      ],
-      "run_at": "document_idle"
-    }
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
+  },
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
   }
 }

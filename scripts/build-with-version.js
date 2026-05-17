@@ -18,7 +18,7 @@ const __dirname = dirname(__filename)
 const rootDir = resolve(__dirname, '..')
 
 // 项目名称（根据需要修改）
-const PROJECT_NAME = 'chrome-plugin-vue3'
+const PROJECT_NAME = 'new-tab-bookmarker'
 
 /**
  * 从 package.json 中读取当前版本号

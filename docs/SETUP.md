@@ -9,7 +9,7 @@
 
 ```bash
 # 1. 复制模板并进入目录
-cp -r chrome-plugin-vue3 my-extension && cd my-extension
+cp -r new-tab-bookmarker my-extension && cd my-extension
 
 # 2. 安装依赖
 npm install

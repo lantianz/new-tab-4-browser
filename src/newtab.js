@@ -1,8 +1,6 @@
-/**
- * Popup 入口文件
- * 创建 Vue 应用并挂载到 DOM
- */
 import { createApp } from 'vue'
+import 'element-plus/dist/index.css'
+import 'element-plus/es/components/message/style/css'
 import { pinia } from '@/stores'
 import App from '@/App.vue'
 
