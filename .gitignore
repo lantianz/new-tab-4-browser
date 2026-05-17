@@ -6,7 +6,6 @@ dist/
 output/
 
 # lock 文件
-package-lock.json
 pnpm-lock.yaml
 yarn.lock
 
