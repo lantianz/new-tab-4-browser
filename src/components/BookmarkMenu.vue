@@ -9,7 +9,6 @@
         <el-popover
           v-if="item.type === 'folder'"
           :visible="activeFolderId === item.id"
-          @update:visible="(visible) => handleFolderVisibleChange(item.id, visible)"
           placement="right-start"
           :width="260"
           trigger="click"
@@ -18,7 +17,8 @@
           :offset="4"
           transition="bookmark-popover-transition"
           :fallback-placements="['right-start', 'left-start']"
-          popper-class="bookmark-popper">
+          popper-class="bookmark-popper"
+          @update:visible="(visible) => handleFolderVisibleChange(item.id, visible)">
           <template #reference>
             <button
               class="menu-row menu-folder"
@@ -29,13 +29,16 @@
               <span class="menu-arrow">›</span>
             </button>
           </template>
-          <BookmarkMenu :items="item.children" />
+          <BookmarkMenu
+            :items="item.children"
+            @bookmark-link-click="emit('bookmark-link-click', $event)" />
         </el-popover>
         <a
           v-else
           class="menu-row menu-link"
           :href="item.url"
-          :title="item.name">
+          :title="item.name"
+          @click.prevent="emit('bookmark-link-click', item.url)">
           <img
             v-if="item.icon"
             :src="item.icon"
@@ -56,6 +59,8 @@
 <script setup>
 import { ref } from 'vue'
 import { Folder, Link } from '@element-plus/icons-vue'
+
+const emit = defineEmits(['bookmark-link-click'])
 
 const activeFolderId = ref(null)
 

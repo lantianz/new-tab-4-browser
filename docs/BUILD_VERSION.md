@@ -46,12 +46,13 @@ npm run bv -- 1.0.1
 output/
 └── new-tab-bookmarker_v1.0.1/
     ├── manifest.json
-    ├── popup.html
-    ├── popup.js
+    ├── newtab.html
+    ├── newtab.js
     ├── background.js
-    ├── content.js
     ├── icons/
-    └── assets/
+    ├── newtab.css
+    ├── vue-vendor.js
+    └── request-vendor.js
 ```
 
 ### 方案三: 版本化构建 + ZIP 打包
@@ -74,7 +75,7 @@ npm run bv:zip
 
 ```
 output/
-└── new-tab-bookmarker_v1.0.1.zip       # ZIP 压缩包
+└── new-tab-bookmarker_v1.0.1.zip
 ```
 
 ## 📝 命令格式
@@ -188,12 +189,13 @@ npm run bv -- 1.0.3
 └── output/
     ├── new-tab-bookmarker_v1.0.1/        # 构建输出目录
     │   ├── manifest.json      # 版本号已更新为 1.0.1
-    │   ├── popup.html
-    │   ├── popup.js
+    │   ├── newtab.html
+    │   ├── newtab.js
     │   ├── background.js
-    │   ├── content.js
     │   ├── icons/
-    │   └── assets/
+    │   ├── newtab.css
+    │   ├── vue-vendor.js
+    │   └── request-vendor.js
     └── new-tab-bookmarker_v1.0.1.zip     # ZIP 压缩包(可选)
 ```
 
@@ -208,7 +210,7 @@ npm run bv -- 1.0.3
    ```bash
    git add package.json manifest.json
    git commit -m "chore: bump version to 1.0.1"
-   git tag v1.0.1
+   git tag 1.0.1
    ```
 
 4. **兼容性**: 保持与原有 `npm run build` 命令的兼容性,如果只需要普通构建,仍可使用:

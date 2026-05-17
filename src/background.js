@@ -1,71 +1,103 @@
-/**
- * Background Service Worker
- * Chrome 扩展的后台脚本，处理扩展的核心逻辑
- */
+import { parseBookmarks } from './utils/bookmark.js'
 
-/**
- * 扩展安装或更新时触发
- * 可以在这里初始化默认配置、创建右键菜单等
- */
-chrome.runtime.onInstalled.addListener((_details) => {
-  console.log('Extension installed/updated')
+const STORAGE_CONFIG_KEY = 'new-tab-bookmarker-webdav-config'
+const STORAGE_CACHE_KEY = 'new-tab-bookmarker-bookmark-cache'
+const AUTO_SYNC_ALARM_NAME = 'new-tab-bookmarker-auto-sync'
 
-  // 设置默认配置到 Chrome 存储
-  chrome.storage.sync.set({
-    // 在此添加你的默认配置
-    // 例如: autoEnable: false
+function hasCompleteConfig(config) {
+  return Boolean(
+    config?.url
+    && config?.username
+    && config?.password
+    && config?.remoteFile,
+  )
+}
+
+function normalizeRemoteUrl(config) {
+  return `${config.url.replace(/\/+$/, '')}/${config.remoteFile.replace(/^\/+/, '')}`
+}
+
+async function syncBookmarksFromWebDav() {
+  const result = await chrome.storage.local.get([STORAGE_CONFIG_KEY])
+  const config = result[STORAGE_CONFIG_KEY]
+  if (!hasCompleteConfig(config)) {
+    return { success: false, reason: 'incomplete-config' }
+  }
+
+  const response = await fetch(normalizeRemoteUrl(config), {
+    headers: {
+      Authorization: `Basic ${btoa(`${config.username}:${config.password}`)}`,
+    },
   })
 
-  // 创建右键菜单(可选)
-  // chrome.contextMenus.create({
-  //   id: 'your-menu-id',
-  //   title: 'Your Menu Title',
-  //   contexts: ['page']
-  // })
-})
-
-/**
- * 处理右键菜单点击事件(可选)
- */
-// chrome.contextMenus.onClicked.addListener((_info, _tab) => {
-//   // 根据菜单 ID 执行不同的操作
-//   // if (info.menuItemId === 'your-menu-id') {
-//   //   chrome.tabs.sendMessage(tab.id, { action: 'yourAction' })
-//   // }
-// })
-
-/**
- * 监听来自 content script 或 popup 的消息
- */
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  console.log('Background received message:', message)
-
-  // 根据消息类型处理不同的逻辑
-  switch (message.action) {
-    case 'getData':
-      // 示例：从存储中获取数据
-      chrome.storage.sync.get(['yourData'], (result) => {
-        sendResponse({ success: true, data: result.yourData })
-      })
-      return true // 表示异步响应
-
-    case 'saveData':
-      // 示例：保存数据到存储
-      chrome.storage.sync.set({ yourData: message.data }, () => {
-        sendResponse({ success: true })
-      })
-      return true
-
-    default:
-      sendResponse({ success: false, error: 'Unknown action' })
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`)
   }
+
+  const html = await response.text()
+  const tree = parseBookmarks(html)
+  await chrome.storage.local.set({
+    [STORAGE_CACHE_KEY]: {
+      tree,
+      updatedAt: new Date().toISOString(),
+    },
+  })
+  return { success: true }
+}
+
+async function updateAutoSyncAlarm() {
+  const result = await chrome.storage.local.get([STORAGE_CONFIG_KEY])
+  const config = result[STORAGE_CONFIG_KEY] || {}
+
+  await chrome.alarms.clear(AUTO_SYNC_ALARM_NAME)
+
+  if (!config.autoSyncEnabled) {
+    return
+  }
+
+  const intervalMinutes = Number(config.autoSyncIntervalMinutes) || 30
+  await chrome.alarms.create(AUTO_SYNC_ALARM_NAME, {
+    periodInMinutes: intervalMinutes,
+  })
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  updateAutoSyncAlarm().catch((error) => {
+    console.error('Failed to initialize auto sync alarm:', error)
+  })
 })
 
-/**
- * 监听标签页更新事件(可选)
- */
-// chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-//   if (changeInfo.status === 'complete' && tab.url) {
-//     // 页面加载完成后执行某些操作
-//   }
-// })
+chrome.runtime.onStartup.addListener(() => {
+  updateAutoSyncAlarm().catch((error) => {
+    console.error('Failed to restore auto sync alarm:', error)
+  })
+})
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== AUTO_SYNC_ALARM_NAME) {
+    return
+  }
+
+  syncBookmarksFromWebDav().catch((error) => {
+    console.error('Auto sync failed:', error)
+  })
+})
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.action === 'updateAutoSync') {
+    updateAutoSyncAlarm()
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error: error.message }))
+    return true
+  }
+
+  if (message?.action === 'syncBookmarksNow') {
+    syncBookmarksFromWebDav()
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ success: false, error: error.message }))
+    return true
+  }
+
+  sendResponse({ success: false, error: 'Unknown action' })
+  return false
+})
