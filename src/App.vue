@@ -294,7 +294,7 @@
             </template>
             <el-scrollbar
               class="bookmark-suggest-panel"
-              max-height="45vh">
+              max-height="30vh">
               <a
                 v-for="item in filteredLinks"
                 :key="item.id"
@@ -1495,11 +1495,6 @@ body {
     transform: translateY(0);
     visibility: visible;
   }
-}
-
-.bookmark-suggest-panel {
-  width: 100%;
-  max-height: min(84vh, 960px);
 }
 
 .bookmark-result-popper.el-popper {
