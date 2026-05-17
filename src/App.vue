@@ -38,6 +38,7 @@
 
       <el-drawer
         v-model="debugVisible"
+        class="panel-drawer"
         title="解析树调试"
         direction="rtl"
         size="520px">
@@ -49,7 +50,7 @@
       <BookmarkThemeDrawer
         v-model="themeVisible"
         :theme="bookmarkTheme"
-        :background-image-label="backgroundImageLabel"
+        :background-files="backgroundFiles"
         @choose-background="chooseBackgroundImage"
         @clear-background="clearBackgroundImage"
         @save="saveBookmarkTheme" />
@@ -108,9 +109,27 @@ const loading = ref(false)
 const testing = ref(false)
 const backgroundFileHandle = ref(null)
 const backgroundImageLabel = ref('')
+const backgroundPreviewUrl = ref('')
 
 let currentBackgroundObjectUrl = null
 let jumpOverlayTimer = null
+
+function normalizeConfig(rawConfig = {}) {
+  const normalized = {
+    ...rawConfig,
+  }
+
+  if (!normalized.autoSyncIntervalUnit) {
+    normalized.autoSyncIntervalUnit = 'minute'
+  }
+
+  if (!normalized.autoSyncIntervalValue) {
+    normalized.autoSyncIntervalValue = normalized.autoSyncIntervalMinutes || 30
+  }
+
+  delete normalized.autoSyncIntervalMinutes
+  return normalized
+}
 
 const config = ref({
   url: 'https://dav.jianguoyun.com/dav/',
@@ -118,7 +137,8 @@ const config = ref({
   password: '',
   remoteFile: '',
   autoSyncEnabled: false,
-  autoSyncIntervalMinutes: 30,
+  autoSyncIntervalUnit: 'minute',
+  autoSyncIntervalValue: 30,
 })
 
 const debugTreeText = computed(() => {
@@ -130,6 +150,19 @@ const debugTreeText = computed(() => {
     .map((child) => formatDebugTree(child, 0))
     .join('\n')
     .trim()
+})
+
+const backgroundFiles = computed(() => {
+  if (!backgroundPreviewUrl.value) {
+    return []
+  }
+
+  return [
+    {
+      name: backgroundImageLabel.value || '背景图片',
+      url: backgroundPreviewUrl.value,
+    },
+  ]
 })
 
 function showMessage(message, type = 'success') {
@@ -225,11 +258,19 @@ function applyBackgroundImage(path) {
 
   if (!path) {
     document.body.style.removeProperty('background-image')
+    backgroundPreviewUrl.value = ''
     return
   }
 
   currentBackgroundObjectUrl = path
+  backgroundPreviewUrl.value = path
   document.body.style.backgroundImage = `url("${path}")`
+}
+
+function applyBackgroundFile(file) {
+  backgroundImageLabel.value = file.name
+  persistBackgroundImageMeta(file.name, file.name)
+  applyBackgroundImage(URL.createObjectURL(file))
 }
 
 async function applyBackgroundFromHandle(silent = false) {
@@ -240,17 +281,20 @@ async function applyBackgroundFromHandle(silent = false) {
 
   try {
     if (typeof backgroundFileHandle.value.queryPermission === 'function') {
-      const permission = await backgroundFileHandle.value.queryPermission({ mode: 'read' })
+      let permission = await backgroundFileHandle.value.queryPermission({ mode: 'read' })
+      if (permission !== 'granted' && typeof backgroundFileHandle.value.requestPermission === 'function') {
+        permission = await backgroundFileHandle.value.requestPermission({ mode: 'read' })
+      }
       if (permission !== 'granted') {
-        applyBackgroundImage('')
+        if (!silent) {
+          showMessage('背景图读取权限未授予，请重新选择图片', 'warning')
+        }
         return
       }
     }
 
     const file = await backgroundFileHandle.value.getFile()
-    backgroundImageLabel.value = file.name
-    persistBackgroundImageMeta(file.name, file.name)
-    applyBackgroundImage(URL.createObjectURL(file))
+    applyBackgroundFile(file)
   } catch (_error) {
     applyBackgroundImage('')
     if (!silent) {
@@ -268,10 +312,8 @@ async function chooseBackgroundImage() {
 
     const { fileHandle, file } = await pickBackgroundImageFile()
     backgroundFileHandle.value = fileHandle
-    backgroundImageLabel.value = file.name
     await saveBackgroundFileHandle(fileHandle)
-    persistBackgroundImageMeta(file.name, file.name)
-    await applyBackgroundFromHandle()
+    applyBackgroundFile(file)
     showMessage('背景图已更新')
   } catch (error) {
     if (error?.name !== 'AbortError') {
@@ -320,10 +362,10 @@ function handleMainStageClick(event) {
 }
 
 async function saveConfig(nextConfig) {
-  config.value = {
+  config.value = normalizeConfig({
     ...config.value,
     ...nextConfig,
-  }
+  })
   await setChromeLocal({
     [STORAGE_CONFIG_KEY]: config.value,
   })
@@ -347,10 +389,10 @@ async function clearCache() {
 }
 
 async function testConnection(nextConfig) {
-  const testConfig = {
+  const testConfig = normalizeConfig({
     ...config.value,
     ...nextConfig,
-  }
+  })
 
   if (!hasCompleteWebDavConfig(testConfig)) {
     showMessage('请先填写完整的 WebDAV 配置', 'error')
@@ -411,20 +453,20 @@ function handleChromeStorageChanged(changes, areaName) {
   }
 
   if (changes[STORAGE_CONFIG_KEY]?.newValue) {
-    config.value = {
+    config.value = normalizeConfig({
       ...config.value,
       ...changes[STORAGE_CONFIG_KEY].newValue,
-    }
+    })
   }
 }
 
 async function initData() {
   const result = await getChromeLocal([STORAGE_CONFIG_KEY, STORAGE_CACHE_KEY])
   if (result[STORAGE_CONFIG_KEY]) {
-    config.value = {
+    config.value = normalizeConfig({
       ...config.value,
       ...result[STORAGE_CONFIG_KEY],
-    }
+    })
   }
 
   if (result[STORAGE_CACHE_KEY]?.tree) {
@@ -477,6 +519,10 @@ onBeforeUnmount(() => {
   --bar-hover-bg: rgba(218, 235, 238, 0.88);
   --bar-active-bg: rgba(210, 231, 235, 0.98);
   --bar-active-border: rgba(126, 165, 177, 0.28);
+}
+
+.panel-drawer {
+  --el-drawer-padding-primary: 12px;
 }
 
 body {

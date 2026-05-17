@@ -17,6 +17,20 @@ function normalizeRemoteUrl(config) {
   return `${config.url.replace(/\/+$/, '')}/${config.remoteFile.replace(/^\/+/, '')}`
 }
 
+function getAutoSyncPeriodMinutes(config = {}) {
+  if (config.autoSyncIntervalUnit && config.autoSyncIntervalValue) {
+    const value = Math.max(1, Number(config.autoSyncIntervalValue) || 1)
+    const unitFactorMap = {
+      minute: 1,
+      hour: 60,
+      day: 1440,
+    }
+    return value * (unitFactorMap[config.autoSyncIntervalUnit] || 1)
+  }
+
+  return Number(config.autoSyncIntervalMinutes) || 30
+}
+
 async function syncBookmarksFromWebDav() {
   const result = await chrome.storage.local.get([STORAGE_CONFIG_KEY])
   const config = result[STORAGE_CONFIG_KEY]
@@ -55,7 +69,7 @@ async function updateAutoSyncAlarm() {
     return
   }
 
-  const intervalMinutes = Number(config.autoSyncIntervalMinutes) || 30
+  const intervalMinutes = getAutoSyncPeriodMinutes(config)
   await chrome.alarms.create(AUTO_SYNC_ALARM_NAME, {
     periodInMinutes: intervalMinutes,
   })

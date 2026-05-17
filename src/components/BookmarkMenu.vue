@@ -23,7 +23,7 @@
             <button
               class="menu-row menu-folder"
               :class="{ 'is-active': activeFolderId === item.id }"
-              :title="item.name">
+              :title="buildBookmarkTitle(item)">
               <el-icon class="menu-icon"><Folder /></el-icon>
               <span class="menu-text">{{ item.name }}</span>
               <span class="menu-arrow">›</span>
@@ -37,7 +37,7 @@
           v-else
           class="menu-row menu-link"
           :href="item.url"
-          :title="item.name"
+          :title="buildBookmarkTitle(item)"
           @click.prevent="emit('bookmark-link-click', item.url)">
           <img
             v-if="item.icon"
@@ -59,6 +59,7 @@
 <script setup>
 import { ref } from 'vue'
 import { Folder, Link } from '@element-plus/icons-vue'
+import { buildBookmarkTitle } from '@/features/bookmarks/services/bookmarkTitleService'
 
 const emit = defineEmits(['bookmark-link-click'])
 
