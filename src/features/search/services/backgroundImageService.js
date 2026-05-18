@@ -4,6 +4,8 @@ import {
   BACKGROUND_HANDLE_STORE_NAME,
   BACKGROUND_IMAGE_FILE_LABEL_KEY,
   BACKGROUND_IMAGE_FILE_NAME_KEY,
+  BACKGROUND_IMAGE_REMOTE_URL_KEY,
+  BACKGROUND_IMAGE_SOURCE_KEY,
 } from '@/shared/constants/storageKeys'
 import { readJsonStorage, writeJsonStorage } from '@/shared/services/localStorageService'
 
@@ -74,6 +76,22 @@ export async function pickBackgroundImageFile() {
 
 export function loadBackgroundImageLabel() {
   return readJsonStorage(BACKGROUND_IMAGE_FILE_LABEL_KEY, '') || ''
+}
+
+export function loadBackgroundImageSource() {
+  return readJsonStorage(BACKGROUND_IMAGE_SOURCE_KEY, 'none') || 'none'
+}
+
+export function saveBackgroundImageSource(source) {
+  writeJsonStorage(BACKGROUND_IMAGE_SOURCE_KEY, source || 'none')
+}
+
+export function loadBackgroundRemoteUrl() {
+  return readJsonStorage(BACKGROUND_IMAGE_REMOTE_URL_KEY, '') || ''
+}
+
+export function saveBackgroundRemoteUrl(url) {
+  writeJsonStorage(BACKGROUND_IMAGE_REMOTE_URL_KEY, url || '')
 }
 
 export function persistBackgroundImageMeta(fileName, label) {

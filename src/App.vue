@@ -50,8 +50,11 @@
       <BookmarkThemeDrawer
         v-model="themeVisible"
         :theme="bookmarkTheme"
+        :background-config="backgroundConfig"
         :background-files="backgroundFiles"
         @choose-background="chooseBackgroundImage"
+        @apply-remote-background="applyRemoteBackground"
+        @change-background-source="changeBackgroundSource"
         @clear-background="clearBackgroundImage"
         @save="saveBookmarkTheme" />
 
@@ -81,8 +84,12 @@ import {
   clearBackgroundImageMeta,
   loadBackgroundFileHandle,
   loadBackgroundImageLabel,
+  loadBackgroundImageSource,
+  loadBackgroundRemoteUrl,
   pickBackgroundImageFile,
   persistBackgroundImageMeta,
+  saveBackgroundImageSource,
+  saveBackgroundRemoteUrl,
   saveBackgroundFileHandle,
 } from '@/features/search/services/backgroundImageService'
 import { STORAGE_CACHE_KEY, STORAGE_CONFIG_KEY } from '@/shared/constants/storageKeys'
@@ -108,6 +115,8 @@ const configVisible = ref(false)
 const loading = ref(false)
 const testing = ref(false)
 const backgroundFileHandle = ref(null)
+const backgroundSource = ref('none')
+const backgroundRemoteUrl = ref('')
 const backgroundImageLabel = ref('')
 const backgroundPreviewUrl = ref('')
 
@@ -153,7 +162,7 @@ const debugTreeText = computed(() => {
 })
 
 const backgroundFiles = computed(() => {
-  if (!backgroundPreviewUrl.value) {
+  if (backgroundSource.value !== 'local' || !backgroundPreviewUrl.value) {
     return []
   }
 
@@ -164,6 +173,11 @@ const backgroundFiles = computed(() => {
     },
   ]
 })
+
+const backgroundConfig = computed(() => ({
+  source: backgroundSource.value,
+  remoteUrl: backgroundRemoteUrl.value,
+}))
 
 function showMessage(message, type = 'success') {
   ElMessage.closeAll()
@@ -262,7 +276,9 @@ function applyBackgroundImage(path) {
     return
   }
 
-  currentBackgroundObjectUrl = path
+  if (path.startsWith('blob:')) {
+    currentBackgroundObjectUrl = path
+  }
   backgroundPreviewUrl.value = path
   document.body.style.backgroundImage = `url("${path}")`
 }
@@ -270,6 +286,8 @@ function applyBackgroundImage(path) {
 function applyBackgroundFile(file) {
   backgroundImageLabel.value = file.name
   persistBackgroundImageMeta(file.name, file.name)
+  backgroundSource.value = 'local'
+  saveBackgroundImageSource('local')
   applyBackgroundImage(URL.createObjectURL(file))
 }
 
@@ -296,11 +314,40 @@ async function applyBackgroundFromHandle(silent = false) {
     const file = await backgroundFileHandle.value.getFile()
     applyBackgroundFile(file)
   } catch (_error) {
-    applyBackgroundImage('')
+    if (backgroundSource.value === 'local') {
+      applyBackgroundImage('')
+    }
     if (!silent) {
       showMessage('背景图读取失败，请重新选择图片', 'warning')
     }
   }
+}
+
+function validateRemoteBackgroundUrl(url) {
+  const nextUrl = (url || '').trim()
+  if (!nextUrl) {
+    return { valid: false, message: '请输入图片链接' }
+  }
+
+  try {
+    const parsed = new URL(nextUrl)
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { valid: false, message: '仅支持 http 或 https 图片链接' }
+    }
+  } catch {
+    return { valid: false, message: '图片链接格式不正确' }
+  }
+
+  return { valid: true, url: nextUrl }
+}
+
+function preloadRemoteImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(url)
+    image.onerror = () => reject(new Error('load-failed'))
+    image.src = url
+  })
 }
 
 async function chooseBackgroundImage() {
@@ -322,11 +369,86 @@ async function chooseBackgroundImage() {
   }
 }
 
+async function applyRemoteBackground(url, options = {}) {
+  const { silent = false } = options
+  const validation = validateRemoteBackgroundUrl(url)
+  if (!validation.valid) {
+    if (!silent) {
+      showMessage(validation.message, 'warning')
+    }
+    return false
+  }
+
+  try {
+    await preloadRemoteImage(validation.url)
+    backgroundRemoteUrl.value = validation.url
+    backgroundSource.value = 'remote'
+    saveBackgroundRemoteUrl(validation.url)
+    saveBackgroundImageSource('remote')
+    applyBackgroundImage(validation.url)
+    backgroundImageLabel.value = '网络背景图片'
+    if (!silent) {
+      showMessage('背景图已更新')
+    }
+    return true
+  } catch {
+    if (!silent) {
+      showMessage('网络图片加载失败，请检查链接是否可访问', 'error')
+    }
+    return false
+  }
+}
+
+async function changeBackgroundSource(source) {
+  if (source === backgroundSource.value) {
+    return
+  }
+
+  if (source === 'local') {
+    backgroundSource.value = 'local'
+    saveBackgroundImageSource('local')
+
+    if (backgroundFileHandle.value) {
+      await applyBackgroundFromHandle(true)
+    } else {
+      applyBackgroundImage('')
+    }
+    return
+  }
+
+  if (source === 'remote') {
+    backgroundSource.value = 'remote'
+    saveBackgroundImageSource('remote')
+
+    if (backgroundRemoteUrl.value) {
+      const applied = await applyRemoteBackground(backgroundRemoteUrl.value, { silent: true })
+      if (!applied) {
+        applyBackgroundImage('')
+      }
+    } else {
+      applyBackgroundImage('')
+    }
+    return
+  }
+
+  backgroundSource.value = 'none'
+  saveBackgroundImageSource('none')
+  applyBackgroundImage('')
+}
+
 async function clearBackgroundImage() {
-  backgroundFileHandle.value = null
-  backgroundImageLabel.value = ''
-  await clearBackgroundFileHandle()
-  clearBackgroundImageMeta()
+  if (backgroundSource.value === 'remote') {
+    backgroundRemoteUrl.value = ''
+    saveBackgroundRemoteUrl('')
+  } else {
+    backgroundFileHandle.value = null
+    backgroundImageLabel.value = ''
+    await clearBackgroundFileHandle()
+    clearBackgroundImageMeta()
+  }
+
+  backgroundSource.value = 'none'
+  saveBackgroundImageSource('none')
   applyBackgroundImage('')
   showMessage('背景图已清空')
 }
@@ -478,9 +600,24 @@ async function initData() {
     ...DEFAULT_BOOKMARK_THEME,
     ...bookmarkTheme.value,
   }
+  backgroundSource.value = loadBackgroundImageSource()
+  backgroundRemoteUrl.value = loadBackgroundRemoteUrl()
   backgroundImageLabel.value = loadBackgroundImageLabel()
   backgroundFileHandle.value = await loadBackgroundFileHandle()
-  await applyBackgroundFromHandle(true)
+
+  if (backgroundSource.value === 'remote' && backgroundRemoteUrl.value) {
+    const applied = await applyRemoteBackground(backgroundRemoteUrl.value, { silent: true })
+    if (!applied) {
+      backgroundSource.value = 'none'
+      saveBackgroundImageSource('none')
+    }
+  } else if (backgroundSource.value === 'local' && backgroundFileHandle.value) {
+    await applyBackgroundFromHandle(true)
+  } else {
+    backgroundSource.value = 'none'
+    applyBackgroundImage('')
+  }
+
   recalcToolbarItems()
 }
 

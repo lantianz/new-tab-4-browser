@@ -75,21 +75,55 @@
         <el-divider content-position="left">
           <span class="section-title">背景图片</span>
         </el-divider>
-        <div class="section-desc">直接选择本地图片作为新标签页背景。</div>
+        <div class="section-desc">支持本地图片与网络链接两种方式，切换后即时生效。</div>
         <section>
-          <el-upload
-            class="background-upload"
-            list-type="picture-card"
-            :file-list="backgroundFiles"
-            :auto-upload="false"
-            :show-file-list="true"
-            :limit="1"
-            :on-preview="handlePreview"
-            :on-remove="handleBackgroundRemove">
-            <el-icon class="background-upload-icon" @click.stop.prevent="emit('choose-background')">
-              <Plus />
-            </el-icon>
-          </el-upload>
+          <div class="background-mode">
+            <span class="background-mode-label">来源方式</span>
+            <el-radio-group
+              :model-value="backgroundMode"
+              @update:model-value="handleSourceChange">
+              <el-radio-button label="local">本地图片</el-radio-button>
+              <el-radio-button label="remote">网络链接</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <div v-if="backgroundMode === 'local'" class="background-section">
+            <el-upload
+              class="background-upload"
+              list-type="picture-card"
+              :file-list="backgroundFiles"
+              :auto-upload="false"
+              :show-file-list="true"
+              :limit="1"
+              :on-preview="handlePreview"
+              :on-remove="handleBackgroundRemove">
+              <el-icon class="background-upload-icon" @click.stop.prevent="emit('choose-background')">
+                <Plus />
+              </el-icon>
+            </el-upload>
+          </div>
+
+          <div v-else class="background-section background-section-remote">
+            <el-input
+              v-model="remoteUrlDraft"
+              class="background-remote-input"
+              placeholder="请输入 http(s) 图片链接"
+              clearable
+              @keyup.enter="submitRemoteUrl" />
+            <div class="background-remote-actions">
+              <el-button
+                type="primary"
+                @click="submitRemoteUrl">
+                应用链接
+              </el-button>
+              <el-button
+                v-if="backgroundConfig.remoteUrl"
+                @click="handleBackgroundRemove">
+                清空背景
+              </el-button>
+            </div>
+          </div>
+
           <el-dialog
             v-model="previewVisible"
             :width="previewDialogWidth"
@@ -145,6 +179,13 @@ const props = defineProps({
   modelValue: { type: Boolean, default: false },
   theme: { type: Object, required: true },
   backgroundFiles: { type: Array, default: () => [] },
+  backgroundConfig: {
+    type: Object,
+    default: () => ({
+      source: 'none',
+      remoteUrl: '',
+    }),
+  },
 })
 
 const emit = defineEmits([
@@ -152,6 +193,8 @@ const emit = defineEmits([
   'save',
   'choose-background',
   'clear-background',
+  'apply-remote-background',
+  'change-background-source',
 ])
 
 const localTheme = ref({ ...DEFAULT_BOOKMARK_THEME, ...props.theme })
@@ -159,11 +202,14 @@ const previewVisible = ref(false)
 const previewImageUrl = ref('')
 const previewAspectRatio = ref(16 / 9)
 const showMockLayout = ref(true)
+const remoteUrlDraft = ref('')
 
 const visibleProxy = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
 })
+
+const backgroundMode = computed(() => (props.backgroundConfig.source === 'remote' ? 'remote' : 'local'))
 
 watch(
   () => props.theme,
@@ -171,6 +217,14 @@ watch(
     localTheme.value = { ...DEFAULT_BOOKMARK_THEME, ...value }
   },
   { deep: true, immediate: true },
+)
+
+watch(
+  () => props.backgroundConfig.remoteUrl,
+  (value) => {
+    remoteUrlDraft.value = value || ''
+  },
+  { immediate: true },
 )
 
 function resetField(field) {
@@ -184,6 +238,14 @@ function resetAll() {
 function handlePreview(file) {
   previewImageUrl.value = file.url || ''
   previewVisible.value = Boolean(previewImageUrl.value)
+}
+
+function handleSourceChange(source) {
+  emit('change-background-source', source)
+}
+
+function submitRemoteUrl() {
+  emit('apply-remote-background', remoteUrlDraft.value)
 }
 
 function handleBackgroundRemove() {
@@ -315,6 +377,34 @@ onBeforeUnmount(() => {
   width: 116px;
   height: 116px;
   border-radius: 4px;
+}
+
+.background-mode {
+  display: grid;
+  gap: 10px;
+}
+
+.background-mode-label {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.background-section {
+  margin-top: 14px;
+}
+
+.background-section-remote {
+  display: grid;
+  gap: 10px;
+}
+
+.background-remote-input {
+  width: 100%;
+}
+
+.background-remote-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .background-upload-icon {
