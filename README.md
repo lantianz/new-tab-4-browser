@@ -37,7 +37,7 @@ src/
 └─ App.vue         # 页面装配层
 ```
 
-详细说明见 [docs/ARCHITECTURE.md](D:/Users/Desktop/new-tab-bookmarker/docs/ARCHITECTURE.md)。
+详细说明见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
 ## WebDAV 使用
 
@@ -48,7 +48,7 @@ src/
 
 ## 发布流程
 
-1. 更新 [CHANGELOG.md](D:/Users/Desktop/new-tab-bookmarker/CHANGELOG.md)
+1. 更新 [CHANGELOG.md](./CHANGELOG.md)
 2. 本地安装测试时执行 `npm run bv -- 1.0.1`
 3. 从 `output/new-tab-bookmarker` 加载已解压扩展，版本可通过 `VERSION` 文件确认
 4. 正式发布时执行 `npm run bv:zip -- 1.0.1`

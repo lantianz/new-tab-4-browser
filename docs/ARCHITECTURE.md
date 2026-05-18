@@ -12,7 +12,7 @@
 
 ### 1. 页面装配层
 
-文件：[`src/App.vue`](D:/Users/Desktop/new-tab-bookmarker/src/App.vue)
+文件：`src/App.vue`
 
 职责：
 
@@ -38,11 +38,11 @@
 
 关键文件：
 
-- [`BookmarkBar.vue`](D:/Users/Desktop/new-tab-bookmarker/src/features/bookmarks/components/BookmarkBar.vue)
-- [`BookmarkThemeDrawer.vue`](D:/Users/Desktop/new-tab-bookmarker/src/features/bookmarks/components/BookmarkThemeDrawer.vue)
-- [`WebDavConfigDrawer.vue`](D:/Users/Desktop/new-tab-bookmarker/src/features/bookmarks/components/WebDavConfigDrawer.vue)
-- [`bookmarkUiStore.js`](D:/Users/Desktop/new-tab-bookmarker/src/features/bookmarks/stores/bookmarkUiStore.js)
-- [`webdavBookmarkService.js`](D:/Users/Desktop/new-tab-bookmarker/src/features/bookmarks/services/webdavBookmarkService.js)
+- `src/features/bookmarks/components/BookmarkBar.vue`
+- `src/features/bookmarks/components/BookmarkThemeDrawer.vue`
+- `src/features/bookmarks/components/WebDavConfigDrawer.vue`
+- `src/features/bookmarks/stores/bookmarkUiStore.js`
+- `src/features/bookmarks/services/webdavBookmarkService.js`
 
 #### `src/features/search`
 
@@ -55,10 +55,10 @@
 
 关键文件：
 
-- [`SearchStage.vue`](D:/Users/Desktop/new-tab-bookmarker/src/features/search/components/SearchStage.vue)
-- [`searchUiStore.js`](D:/Users/Desktop/new-tab-bookmarker/src/features/search/stores/searchUiStore.js)
-- [`backgroundImageService.js`](D:/Users/Desktop/new-tab-bookmarker/src/features/search/services/backgroundImageService.js)
-- [`searchPageStateService.js`](D:/Users/Desktop/new-tab-bookmarker/src/features/search/services/searchPageStateService.js)
+- `src/features/search/components/SearchStage.vue`
+- `src/features/search/stores/searchUiStore.js`
+- `src/features/search/services/backgroundImageService.js`
+- `src/features/search/services/searchPageStateService.js`
 
 ### 3. Shared 层
 
@@ -68,9 +68,9 @@
 
 关键文件：
 
-- [`storageKeys.js`](D:/Users/Desktop/new-tab-bookmarker/src/shared/constants/storageKeys.js)
-- [`chromeStorageService.js`](D:/Users/Desktop/new-tab-bookmarker/src/shared/services/chromeStorageService.js)
-- [`localStorageService.js`](D:/Users/Desktop/new-tab-bookmarker/src/shared/services/localStorageService.js)
+- `src/shared/constants/storageKeys.js`
+- `src/shared/services/chromeStorageService.js`
+- `src/shared/services/localStorageService.js`
 
 ### 4. Utils 层
 
@@ -81,7 +81,7 @@
 
 关键文件：
 
-- [`bookmark.js`](D:/Users/Desktop/new-tab-bookmarker/src/utils/bookmark.js)
+- `src/utils/bookmark.js`
 
 ## 当前状态
 
