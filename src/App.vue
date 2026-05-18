@@ -739,6 +739,11 @@ body {
   border-color: var(--line-color);
 }
 
+.bookmark-bar.has-active-folder .link-item:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
 .bar-item.is-active {
   background: var(--bar-active-bg);
   border-color: var(--bar-active-border);

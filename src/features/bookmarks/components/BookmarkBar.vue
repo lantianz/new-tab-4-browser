@@ -1,5 +1,8 @@
 <template>
-  <header class="bookmark-bar" :style="bookmarkBarStyle">
+  <header
+    class="bookmark-bar"
+    :class="{ 'has-active-folder': !!activeTopFolderId }"
+    :style="bookmarkBarStyle">
     <div class="bar-left">
       <div class="bar-scroll">
         <template v-for="item in visibleToolbarItems" :key="item.id">
@@ -23,7 +26,8 @@
                   'is-active': activeTopFolderId === item.id,
                   'other-bookmarks-item': item.name === '其他书签',
                 }"
-                :title="buildBookmarkTitle(item)">
+                :title="buildBookmarkTitle(item)"
+                @mouseenter="handleFolderMouseenter(item.id, activeTopFolderId)">
                 <el-icon class="item-icon"><Folder /></el-icon>
                 <span class="item-text">{{ item.name }}</span>
               </button>
@@ -124,5 +128,13 @@ const emit = defineEmits([
 
 function handleLinkClick(url) {
   emit('bookmark-link-click', url)
+}
+
+function handleFolderMouseenter(id, currentActiveId) {
+  if (!currentActiveId || currentActiveId === id) {
+    return
+  }
+
+  emit('top-folder-visible-change', id, true)
 }
 </script>
