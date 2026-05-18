@@ -12,6 +12,20 @@
 - 版本号必须与 Git tag 一致，例如 `1.0.1`
 - GitHub Actions 会自动提取对应版本段内容作为 Release Notes
 
+## 1.0.3 - 2026-05-18
+
+### 优化
+
+- 调整版本化构建脚本，普通构建目录固定为 `output/new-tab-bookmarker`
+- ZIP 文件名继续保留版本号，但解压后的根目录固定为 `new-tab-bookmarker`
+- 构建产物新增无后缀 `VERSION` 标记文件，用于识别当前构建版本
+- 版本号未变化时不再重写 `package.json` 与 `manifest.json`，减少无意义工作区变更
+
+### 文档
+
+- 全面更新构建与发布相关说明，统一到“固定目录 + VERSION 文件 + ZIP 文件名带版本号”的新规则
+- 同步更新 GitHub Release 发布流程说明与本地加载扩展用法
+
 ## 1.0.2 - 2026-05-17
 
 ### 新增

@@ -23,7 +23,10 @@ npm run build
 # 4.1 开发构建
 npm run bv:dev
 
-# 4.2 构建 + ZIP 打包
+# 4.2 本地安装构建
+npm run bv -- 1.0.0
+
+# 4.3 构建 + ZIP 打包
 npm run bv:zip -- 1.0.0
 ```
 
@@ -32,7 +35,8 @@ npm run bv:zip -- 1.0.0
 1. 访问 `chrome://extensions/`
 2. 开启「开发者模式」
 3. 点击「加载已解压的扩展程序」
-4. 选择 `output/` 目录下你的插件文件夹
+4. 选择 `output/new-tab-bookmarker` 目录
+5. 如需确认当前构建版本，可查看目录中的 `VERSION` 文件
 
 ## 项目结构
 
@@ -76,8 +80,8 @@ npm run bv:zip -- 1.0.0
 |------|------|
 | `npm run dev` | 开发模式 |
 | `npm run build` | 普通构建 |
-| `npm run bv -- 1.0.0` | 版本化构建 |
-| `npm run bv:zip -- 1.0.0` | 构建 + ZIP 打包 |
+| `npm run bv -- 1.0.0` | 版本化构建（固定输出目录 + VERSION 文件） |
+| `npm run bv:zip -- 1.0.0` | 构建 + ZIP 打包（ZIP 文件名带版本号） |
 | `npm run bv:dev` | 开发构建（固定目录名） |
 
 ## 内置组件

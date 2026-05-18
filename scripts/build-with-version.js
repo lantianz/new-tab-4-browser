@@ -19,6 +19,7 @@ const rootDir = resolve(__dirname, '..')
 
 // 项目名称（根据需要修改）
 const PROJECT_NAME = 'new-tab-bookmarker'
+const VERSION_MARKER_FILE = 'VERSION'
 
 /**
  * 从 package.json 中读取当前版本号
@@ -139,6 +140,11 @@ function updateJsonVersion(filePath, version) {
     const json = JSON.parse(content)
 
     const oldVersion = json.version
+    if (oldVersion === version) {
+      console.log(`✓ ${filePath}: 版本保持 ${version}`)
+      return true
+    }
+
     json.version = version
 
     // 保持原有的格式(2空格缩进)
@@ -168,12 +174,27 @@ function runBuild() {
 }
 
 /**
+ * 在构建产物目录中写入版本标记文件
+ */
+function writeVersionMarker(targetDir, version) {
+  try {
+    const markerPath = resolve(targetDir, VERSION_MARKER_FILE)
+    writeFileSync(markerPath, `${version}\n`, 'utf-8')
+    console.log(`✓ 版本标记文件: ${VERSION_MARKER_FILE} (${version})`)
+    return true
+  } catch (error) {
+    console.error('✗ 写入版本标记文件失败:', error.message)
+    return false
+  }
+}
+
+/**
  * 重命名输出目录并移动到 output/ 目录下
  */
 function renameOutputDir(version, devMode = false) {
   const viteBuildDir = resolve(rootDir, 'dist')
   const finalOutputDir = resolve(rootDir, 'output')
-  const dirName = devMode ? `${PROJECT_NAME}_dev` : `${PROJECT_NAME}_v${version}`
+  const dirName = devMode ? `${PROJECT_NAME}_dev` : PROJECT_NAME
   const targetDir = resolve(finalOutputDir, dirName)
 
   try {
@@ -201,6 +222,9 @@ function renameOutputDir(version, devMode = false) {
 
     // 移动临时目录到最终位置
     renameSync(tempDir, targetDir)
+    if (!devMode && !writeVersionMarker(targetDir, version)) {
+      return null
+    }
     console.log(`✓ 输出目录: output/${dirName}`)
     return targetDir
   } catch (error) {
@@ -231,7 +255,7 @@ function createZipArchiveFromDist(sourceDir, zipPath, version) {
     })
 
     archive.pipe(output)
-    archive.directory(sourceDir, `${PROJECT_NAME}_v${version}`)
+    archive.directory(sourceDir, PROJECT_NAME)
     archive.finalize()
   })
 }
@@ -344,6 +368,11 @@ async function main() {
       mkdirSync(finalOutputDir, { recursive: true })
     }
 
+    if (!writeVersionMarker(viteBuildDir, version)) {
+      console.error('❌ 版本标记文件写入失败,构建终止')
+      process.exit(1)
+    }
+
     const zipPath = resolve(finalOutputDir, `${PROJECT_NAME}_v${version}.zip`)
 
     // 如果 ZIP 文件已存在，先删除
@@ -364,6 +393,8 @@ async function main() {
     // 完成
     console.log('\n✅ 版本化构建完成!')
     console.log(`📦 ZIP 文件: output/${PROJECT_NAME}_v${version}.zip`)
+    console.log(`📁 解压目录: ${PROJECT_NAME}`)
+    console.log(`🏷️ 版本标记: ${PROJECT_NAME}/${VERSION_MARKER_FILE}`)
   } else {
     // 普通模式：只生成目录
     console.log('📁 重命名输出目录...')
@@ -375,9 +406,10 @@ async function main() {
 
     // 完成
     console.log('\n✅ 版本化构建完成!')
-    console.log(`📦 输出目录: output/${PROJECT_NAME}_v${version}`)
+    console.log(`📦 输出目录: output/${PROJECT_NAME}`)
+    console.log(`🏷️ 版本标记: output/${PROJECT_NAME}/${VERSION_MARKER_FILE}`)
     console.log(
-      `🎉 可以直接将 output/${PROJECT_NAME}_v${version} 文件夹加载到 Chrome 扩展中\n`
+      `🎉 可以直接将 output/${PROJECT_NAME} 文件夹加载到 Chrome 扩展中\n`
     )
   }
 }

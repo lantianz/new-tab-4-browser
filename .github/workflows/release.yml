@@ -31,7 +31,7 @@ jobs:
         run: node scripts/extract-release-notes.js "${{ github.ref_name }}" > /tmp/release-notes.md
 
       - name: Build zip package
-        run: npm run bv -- ${{ github.ref_name }} --zip
+        run: npm run bv:zip -- ${{ github.ref_name }}
 
       - name: Extract release notes
         id: notes

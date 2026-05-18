@@ -17,6 +17,7 @@ npm run dev
 npm run build
 npm run lint
 npm run bv:dev
+npm run bv -- 1.0.1
 npm run bv:zip -- 1.0.1
 ```
 
@@ -48,16 +49,19 @@ src/
 ## 发布流程
 
 1. 更新 [CHANGELOG.md](D:/Users/Desktop/new-tab-bookmarker/CHANGELOG.md)
-2. 执行 `npm run bv:zip -- 1.0.1`
-3. 提交并推送代码
-4. 推送语义化 tag，例如：
+2. 本地安装测试时执行 `npm run bv -- 1.0.1`
+3. 从 `output/new-tab-bookmarker` 加载已解压扩展，版本可通过 `VERSION` 文件确认
+4. 正式发布时执行 `npm run bv:zip -- 1.0.1`
+5. ZIP 文件名会保留版本号，解压后的根目录固定为 `new-tab-bookmarker`
+6. 提交并推送代码
+7. 推送语义化 tag，例如：
 
 ```bash
 git tag 1.0.1
 git push origin 1.0.1
 ```
 
-5. GitHub Actions 会自动：
+8. GitHub Actions 会自动：
    - 校验 `CHANGELOG.md` 中的对应版本段
    - 安装依赖并执行 `bv:zip`
    - 自动创建 Release 并上传 ZIP 包

@@ -1,6 +1,6 @@
 {
   "name": "new-tab-bookmarker",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Chrome 新标签页书签管理扩展，支持 WebDAV 刷新与缓存。",
   "type": "module",
   "scripts": {
