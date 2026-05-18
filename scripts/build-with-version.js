@@ -20,6 +20,7 @@ const rootDir = resolve(__dirname, '..')
 // 项目名称（根据需要修改）
 const PROJECT_NAME = 'new-tab-bookmarker'
 const VERSION_MARKER_FILE = 'VERSION'
+const DEV_DISPLAY_SUFFIX = ' [DEV]'
 
 /**
  * 从 package.json 中读取当前版本号
@@ -189,6 +190,43 @@ function writeVersionMarker(targetDir, version) {
 }
 
 /**
+ * 为开发构建改写 manifest 展示信息，避免和正式版混淆
+ */
+function customizeDevManifest(targetDir, version) {
+  try {
+    const manifestPath = resolve(targetDir, 'manifest.json')
+    const content = readFileSync(manifestPath, 'utf-8')
+    const manifest = JSON.parse(content)
+
+    const appendDevSuffix = (value) => {
+      if (!value || typeof value !== 'string') {
+        return value
+      }
+      return value.endsWith(DEV_DISPLAY_SUFFIX) ? value : `${value}${DEV_DISPLAY_SUFFIX}`
+    }
+
+    manifest.name = appendDevSuffix(manifest.name)
+
+    if (manifest.short_name) {
+      manifest.short_name = appendDevSuffix(manifest.short_name)
+    }
+
+    if (manifest.action?.default_title) {
+      manifest.action.default_title = appendDevSuffix(manifest.action.default_title)
+    }
+
+    manifest.version_name = `${version || manifest.version}-dev`
+
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8')
+    console.log(`✓ 开发版标识已写入 manifest: ${manifest.name} (${manifest.version_name})`)
+    return true
+  } catch (error) {
+    console.error('✗ 开发版 manifest 改写失败:', error.message)
+    return false
+  }
+}
+
+/**
  * 重命名输出目录并移动到 output/ 目录下
  */
 function renameOutputDir(version, devMode = false) {
@@ -287,9 +325,16 @@ async function main() {
       process.exit(1)
     }
 
+    if (!customizeDevManifest(targetDir, currentVersion)) {
+      console.error('❌ 开发版标识写入失败,流程终止')
+      process.exit(1)
+    }
+
     // 完成
     console.log('\n✅ 开发模式构建完成!')
     console.log(`📦 输出目录: output/${PROJECT_NAME}_dev`)
+    console.log(`🏷️ 显示名称: ${PROJECT_NAME}${DEV_DISPLAY_SUFFIX}`)
+    console.log(`🔢 显示版本: ${(currentVersion || 'unknown')}-dev`)
     console.log(`🎉 可以直接将 output/${PROJECT_NAME}_dev 文件夹加载到 Chrome 扩展中\n`)
     return
   }

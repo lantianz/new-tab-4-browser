@@ -82,7 +82,7 @@ npm run bv:zip -- 1.0.0
 | `npm run build` | 普通构建 |
 | `npm run bv -- 1.0.0` | 版本化构建（固定输出目录 + VERSION 文件） |
 | `npm run bv:zip -- 1.0.0` | 构建 + ZIP 打包（ZIP 文件名带版本号） |
-| `npm run bv:dev` | 开发构建（固定目录名） |
+| `npm run bv:dev` | 开发构建（固定目录名 + 浏览器内显示 `[DEV]`） |
 
 ## 内置组件
 
