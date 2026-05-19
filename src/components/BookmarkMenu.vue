@@ -57,7 +57,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { Folder, Link } from '@element-plus/icons-vue'
 import { buildBookmarkTitle } from '@/features/bookmarks/services/bookmarkTitleService'
 
@@ -69,12 +69,23 @@ function handleFolderVisibleChange(id, visible) {
   activeFolderId.value = visible ? id : activeFolderId.value === id ? null : activeFolderId.value
 }
 
-defineProps({
+const props = defineProps({
   items: {
     type: Array,
     default: () => [],
   },
+  closeSignal: {
+    type: String,
+    default: null,
+  },
 })
+
+watch(
+  () => props.closeSignal,
+  () => {
+    activeFolderId.value = null
+  }
+)
 </script>
 
 <style scoped>

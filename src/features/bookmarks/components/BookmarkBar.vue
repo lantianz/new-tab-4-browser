@@ -34,6 +34,7 @@
             </template>
             <BookmarkMenu
               :items="item.children"
+              :close-signal="activeTopFolderId"
               @bookmark-link-click="handleLinkClick" />
           </el-popover>
           <a
@@ -41,7 +42,7 @@
             class="bar-item link-item"
             :href="item.url"
             :title="buildBookmarkTitle(item)"
-            @click="handleLinkClick(item.url)">
+            @click="handleTopLinkClick($event, item.url, activeTopFolderId)">
             <img v-if="item.icon" :src="item.icon" class="favicon" alt="" />
             <el-icon v-else class="item-icon"><ChromeFilled /></el-icon>
             <span class="item-text">{{ item.name }}</span>
@@ -128,6 +129,16 @@ const emit = defineEmits([
 
 function handleLinkClick(url) {
   emit('bookmark-link-click', url)
+}
+
+function handleTopLinkClick(event, url, currentActiveId) {
+  if (currentActiveId) {
+    event.preventDefault()
+    emit('top-folder-visible-change', currentActiveId, false)
+    return
+  }
+
+  handleLinkClick(url)
 }
 
 function handleFolderMouseenter(id, currentActiveId) {

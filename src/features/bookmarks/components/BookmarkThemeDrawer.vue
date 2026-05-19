@@ -82,8 +82,8 @@
             <el-radio-group
               :model-value="backgroundMode"
               @update:model-value="handleSourceChange">
-              <el-radio-button label="local">本地图片</el-radio-button>
-              <el-radio-button label="remote">网络链接</el-radio-button>
+              <el-radio-button value="local">本地图片</el-radio-button>
+              <el-radio-button value="remote">网络链接</el-radio-button>
             </el-radio-group>
           </div>
 
