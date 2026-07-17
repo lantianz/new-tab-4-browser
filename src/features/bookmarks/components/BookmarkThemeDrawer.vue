@@ -82,6 +82,7 @@
             <el-radio-group
               :model-value="backgroundMode"
               @update:model-value="handleSourceChange">
+              <el-radio-button value="none">无背景</el-radio-button>
               <el-radio-button value="local">本地图片</el-radio-button>
               <el-radio-button value="remote">网络链接</el-radio-button>
             </el-radio-group>
@@ -103,7 +104,7 @@
             </el-upload>
           </div>
 
-          <div v-else class="background-section background-section-remote">
+          <div v-else-if="backgroundMode === 'remote'" class="background-section background-section-remote">
             <el-input
               v-model="remoteUrlDraft"
               class="background-remote-input"
@@ -143,7 +144,7 @@
                   <span class="preview-mock-bookmark">工具</span>
                   <span class="preview-mock-bookmark">项目</span>
                   <span class="preview-mock-bookmark">文档</span>
-                  <span class="preview-mock-bookmark preview-mock-bookmark-right">其他书签</span>
+                  <span class="preview-mock-bookmark preview-mock-bookmark-right">所有书签</span>
                 </div>
                 <div class="preview-mock-search">
                   <div class="preview-mock-engine" />
@@ -209,7 +210,7 @@ const visibleProxy = computed({
   set: (value) => emit('update:modelValue', value),
 })
 
-const backgroundMode = computed(() => (props.backgroundConfig.source === 'remote' ? 'remote' : 'local'))
+const backgroundMode = computed(() => props.backgroundConfig.source || 'none')
 
 watch(
   () => props.theme,

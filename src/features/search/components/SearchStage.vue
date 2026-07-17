@@ -41,7 +41,7 @@
                 type="text"
                 autocomplete="off"
                 placeholder="搜索书签或输入关键词"
-                @keydown.enter.prevent="performSearch" />
+                @keydown.enter.stop.prevent="performSearch" />
             </div>
 
             <div class="shortcut-container">
@@ -96,10 +96,11 @@
           class="result-item"
           :href="item.url"
           :title="item.name"
-          @click.prevent="emit('bookmark-link-click', item.url)">
+          @click.prevent="emit('bookmark-link-click', item.url)"
+          @contextmenu.prevent="emit('bookmark-contextmenu', { event: $event, item })">
           <img
-            v-if="item.icon"
-            :src="item.icon"
+            v-if="getBookmarkFaviconUrl(item)"
+            :src="getBookmarkFaviconUrl(item)"
             class="favicon"
             alt="" />
           <el-icon
@@ -126,6 +127,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ChromeFilled } from '@element-plus/icons-vue'
+import { getBookmarkFaviconUrl } from '@/features/bookmarks/services/bookmarkFaviconService'
 import { SEARCH_ENGINES } from '../constants'
 import { patchSearchPageState, loadSearchPageState } from '../services/searchPageStateService'
 import { useSearchUiStore } from '../stores/searchUiStore'
@@ -141,7 +143,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['bookmark-link-click'])
+const emit = defineEmits(['bookmark-link-click', 'bookmark-contextmenu'])
 
 const searchUiStore = useSearchUiStore()
 const {
@@ -157,6 +159,7 @@ const {
 
 const searchInputRef = ref(null)
 const searchStackRef = ref(null)
+const isNavigating = ref(false)
 
 let engineExpandTimer = null
 let hideSearchContainerTimer = null
@@ -211,10 +214,11 @@ function getCurrentEngine() {
 
 function performSearch() {
   const keyword = query.value.trim()
-  if (!keyword) return
+  if (!keyword || isNavigating.value) return
+  isNavigating.value = true
   const engine = getCurrentEngine()
   const searchUrl = engine.value.replace('{query}', encodeURIComponent(keyword))
-  window.open(searchUrl, '_self')
+  window.location.assign(searchUrl)
 }
 
 function openShortcut(url) {

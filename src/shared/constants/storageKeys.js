@@ -9,4 +9,6 @@ export const BACKGROUND_IMAGE_FILE_LABEL_KEY = 'new-tab-bookmarker-background-im
 export const BACKGROUND_HANDLE_DB_NAME = 'new-tab-bookmarker-db'
 export const BACKGROUND_HANDLE_STORE_NAME = 'fs-handles'
 export const BACKGROUND_HANDLE_KEY = 'background-file-handle'
+export const BACKGROUND_LOCAL_FILE_KEY = 'background-local-file'
+export const BACKGROUND_REMOTE_CACHE_KEY = 'background-remote-cache'
 export const AUTO_SYNC_ALARM_NAME = 'new-tab-bookmarker-auto-sync'

@@ -1,6 +1,11 @@
 <template>
   <el-config-provider :locale="zhCn">
     <div class="page-shell">
+      <div
+        class="background-image-layer"
+        :class="{ 'is-visible': backgroundPreviewUrl }"
+        :style="backgroundLayerStyle" />
+
       <BookmarkBar
         :toolbar-items="toolbarItems"
         :visible-toolbar-items="visibleToolbarItems"
@@ -8,10 +13,15 @@
         :active-top-folder-id="activeTopFolderId"
         :bookmark-bar-style="bookmarkBarStyle"
         :loading="loading"
+        :browser-syncing="browserSyncing"
         :build-bookmark-title="buildBookmarkTitle"
         @top-folder-visible-change="handleTopFolderVisibleChange"
         @clear-cache="clearCache"
         @refresh-bookmarks="refreshBookmarks()"
+        @sync-browser-bookmarks="syncCurrentBrowserBookmarks"
+        @export-config="exportConfiguration"
+        @import-config="importConfiguration"
+        @bookmark-contextmenu="showBookmarkContextMenu"
         @open-debug="debugVisible = true"
         @open-theme="themeVisible = true"
         @open-webdav="configVisible = true"
@@ -24,8 +34,13 @@
           <SearchStage
             ref="searchStageRef"
             :all-links="allLinks"
-            :suspend-hotkeys="configVisible || themeVisible || debugVisible"
-            @bookmark-link-click="handleBookmarkNavigate" />
+            :suspend-hotkeys="configVisible
+              || themeVisible
+              || debugVisible
+              || bookmarkEditVisible
+              || bookmarkContextMenuVisible"
+            @bookmark-link-click="handleBookmarkNavigate"
+            @bookmark-contextmenu="showBookmarkContextMenu" />
         </div>
       </main>
 
@@ -61,6 +76,41 @@
       <JumpOverlay
         :visible="jumpOverlayVisible"
         :text="bookmarkTheme.jumpOverlayText" />
+
+      <BookmarkContextMenu
+        v-model:visible="bookmarkContextMenuVisible"
+        :x="bookmarkContextMenuPoint.x"
+        :y="bookmarkContextMenuPoint.y"
+        :bookmark="bookmarkContextTarget"
+        @action="handleBookmarkContextAction" />
+
+      <el-dialog
+        v-model="bookmarkEditVisible"
+        :title="bookmarkEditTarget?.url ? '修改书签' : '重命名文件夹'"
+        width="420px"
+        :close-on-click-modal="!bookmarkActionLoading"
+        :close-on-press-escape="!bookmarkActionLoading">
+        <el-form label-position="top">
+          <el-form-item label="名称">
+            <el-input v-model="bookmarkEditDraft.title" maxlength="200" />
+          </el-form-item>
+          <el-form-item v-if="bookmarkEditTarget?.url" label="网址">
+            <el-input
+              v-model="bookmarkEditDraft.url"
+              type="textarea"
+              :rows="3"
+              resize="none" />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button :disabled="bookmarkActionLoading" @click="bookmarkEditVisible = false">
+            取消
+          </el-button>
+          <el-button type="primary" :loading="bookmarkActionLoading" @click="saveBookmarkEdit">
+            保存
+          </el-button>
+        </template>
+      </el-dialog>
     </div>
   </el-config-provider>
 </template>
@@ -69,31 +119,53 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import BookmarkBar from '@/features/bookmarks/components/BookmarkBar.vue'
+import BookmarkContextMenu from '@/features/bookmarks/components/BookmarkContextMenu.vue'
 import BookmarkThemeDrawer from '@/features/bookmarks/components/BookmarkThemeDrawer.vue'
 import JumpOverlay from '@/features/bookmarks/components/JumpOverlay.vue'
 import WebDavConfigDrawer from '@/features/bookmarks/components/WebDavConfigDrawer.vue'
 import { DEFAULT_BOOKMARK_THEME } from '@/features/bookmarks/constants'
 import { buildBookmarkTitle } from '@/features/bookmarks/services/bookmarkTitleService'
+import {
+  createChromeBookmarkFolder,
+  openBookmarkInNewTab,
+  openChromeBookmarkManager,
+  removeChromeBookmark,
+  updateChromeBookmark,
+} from '@/features/bookmarks/services/chromeBookmarkActionService'
 import { hasCompleteWebDavConfig, fetchBookmarksFromWebDav } from '@/features/bookmarks/services/webdavBookmarkService'
 import { useBookmarkUiStore } from '@/features/bookmarks/stores/bookmarkUiStore'
 import SearchStage from '@/features/search/components/SearchStage.vue'
 import {
+  clearCachedRemoteBackgroundImage,
   clearBackgroundFileHandle,
+  clearBackgroundImageFile,
   clearBackgroundImageMeta,
+  fetchRemoteBackgroundImage,
+  loadBackgroundImageFile,
   loadBackgroundFileHandle,
   loadBackgroundImageLabel,
   loadBackgroundImageSource,
+  loadCachedRemoteBackgroundImage,
   loadBackgroundRemoteUrl,
   pickBackgroundImageFile,
   persistBackgroundImageMeta,
+  saveCachedRemoteBackgroundImage,
+  saveBackgroundImageFile,
   saveBackgroundImageSource,
   saveBackgroundRemoteUrl,
   saveBackgroundFileHandle,
 } from '@/features/search/services/backgroundImageService'
+import { loadSearchPageState, patchSearchPageState } from '@/features/search/services/searchPageStateService'
 import { STORAGE_CACHE_KEY, STORAGE_CONFIG_KEY } from '@/shared/constants/storageKeys'
 import { getChromeLocal, sendChromeMessage, setChromeLocal } from '@/shared/services/chromeStorageService'
+import {
+  configurationAssetToBlob,
+  createConfigurationBackup,
+  downloadConfigurationBackup,
+  pickConfigurationBackup,
+} from '@/shared/services/configTransferService'
 
 const bookmarkUiStore = useBookmarkUiStore()
 const {
@@ -114,6 +186,14 @@ const searchStageRef = ref(null)
 const configVisible = ref(false)
 const loading = ref(false)
 const testing = ref(false)
+const browserSyncing = ref(false)
+const bookmarkContextMenuVisible = ref(false)
+const bookmarkContextMenuPoint = ref({ x: 0, y: 0 })
+const bookmarkContextTarget = ref(null)
+const bookmarkEditVisible = ref(false)
+const bookmarkEditTarget = ref(null)
+const bookmarkEditDraft = ref({ title: '', url: '' })
+const bookmarkActionLoading = ref(false)
 const backgroundFileHandle = ref(null)
 const backgroundSource = ref('none')
 const backgroundRemoteUrl = ref('')
@@ -177,6 +257,12 @@ const backgroundFiles = computed(() => {
 const backgroundConfig = computed(() => ({
   source: backgroundSource.value,
   remoteUrl: backgroundRemoteUrl.value,
+}))
+
+const backgroundLayerStyle = computed(() => ({
+  backgroundImage: backgroundPreviewUrl.value
+    ? `url("${backgroundPreviewUrl.value.replace(/"/g, '%22')}")`
+    : 'none',
 }))
 
 function showMessage(message, type = 'success') {
@@ -243,7 +329,7 @@ function recalcToolbarItems() {
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index]
     const width = estimateBarItemWidth(item)
-    const isOther = item.name === '其他书签'
+    const isOther = item.name === '所有书签'
     const remainCount = items.length - index - 1
     const reserveOverflow = remainCount > 0 ? overflowButtonWidth : 0
 
@@ -264,62 +350,77 @@ function recalcToolbarItems() {
   overflowToolbarItems.value = nextOverflow
 }
 
-function applyBackgroundImage(path) {
-  if (currentBackgroundObjectUrl) {
-    URL.revokeObjectURL(currentBackgroundObjectUrl)
-    currentBackgroundObjectUrl = null
-  }
+function swapBackgroundImage(path, isObjectUrl = false) {
+  const previousObjectUrl = currentBackgroundObjectUrl
+  currentBackgroundObjectUrl = isObjectUrl ? path : null
+  backgroundPreviewUrl.value = path || ''
 
-  if (!path) {
-    document.body.style.removeProperty('background-image')
-    backgroundPreviewUrl.value = ''
-    return
+  if (previousObjectUrl && previousObjectUrl !== path) {
+    requestAnimationFrame(() => URL.revokeObjectURL(previousObjectUrl))
   }
-
-  if (path.startsWith('blob:')) {
-    currentBackgroundObjectUrl = path
-  }
-  backgroundPreviewUrl.value = path
-  document.body.style.backgroundImage = `url("${path}")`
 }
 
-function applyBackgroundFile(file) {
-  backgroundImageLabel.value = file.name
-  persistBackgroundImageMeta(file.name, file.name)
+function preloadImage(url, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    const timer = setTimeout(() => reject(new Error('load-timeout')), timeout)
+    image.onload = () => {
+      clearTimeout(timer)
+      resolve(url)
+    }
+    image.onerror = () => {
+      clearTimeout(timer)
+      reject(new Error('load-failed'))
+    }
+    image.src = url
+  })
+}
+
+async function applyBackgroundBlob(blob) {
+  const objectUrl = URL.createObjectURL(blob)
+  try {
+    await preloadImage(objectUrl)
+    swapBackgroundImage(objectUrl, true)
+  } catch (error) {
+    URL.revokeObjectURL(objectUrl)
+    throw error
+  }
+}
+
+async function applyBackgroundFile(file, options = {}) {
+  const { persist = true } = options
+  await applyBackgroundBlob(file)
+  backgroundImageLabel.value = file.name || backgroundImageLabel.value || '背景图片'
   backgroundSource.value = 'local'
   saveBackgroundImageSource('local')
-  applyBackgroundImage(URL.createObjectURL(file))
+
+  if (persist) {
+    await saveBackgroundImageFile(file)
+    persistBackgroundImageMeta(file.name, file.name)
+  }
 }
 
 async function applyBackgroundFromHandle(silent = false) {
   if (!backgroundFileHandle.value) {
-    applyBackgroundImage('')
-    return
+    return false
   }
 
   try {
     if (typeof backgroundFileHandle.value.queryPermission === 'function') {
-      let permission = await backgroundFileHandle.value.queryPermission({ mode: 'read' })
-      if (permission !== 'granted' && typeof backgroundFileHandle.value.requestPermission === 'function') {
-        permission = await backgroundFileHandle.value.requestPermission({ mode: 'read' })
-      }
+      const permission = await backgroundFileHandle.value.queryPermission({ mode: 'read' })
       if (permission !== 'granted') {
-        if (!silent) {
-          showMessage('背景图读取权限未授予，请重新选择图片', 'warning')
-        }
-        return
+        return false
       }
     }
 
     const file = await backgroundFileHandle.value.getFile()
-    applyBackgroundFile(file)
+    await applyBackgroundFile(file)
+    return true
   } catch (_error) {
-    if (backgroundSource.value === 'local') {
-      applyBackgroundImage('')
-    }
     if (!silent) {
       showMessage('背景图读取失败，请重新选择图片', 'warning')
     }
+    return false
   }
 }
 
@@ -341,26 +442,14 @@ function validateRemoteBackgroundUrl(url) {
   return { valid: true, url: nextUrl }
 }
 
-function preloadRemoteImage(url) {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(url)
-    image.onerror = () => reject(new Error('load-failed'))
-    image.src = url
-  })
-}
-
 async function chooseBackgroundImage() {
   try {
-    if (typeof window.showOpenFilePicker !== 'function') {
-      showMessage('当前环境不支持图片选择器', 'warning')
-      return
-    }
-
     const { fileHandle, file } = await pickBackgroundImageFile()
     backgroundFileHandle.value = fileHandle
-    await saveBackgroundFileHandle(fileHandle)
-    applyBackgroundFile(file)
+    if (fileHandle) {
+      await saveBackgroundFileHandle(fileHandle)
+    }
+    await applyBackgroundFile(file)
     showMessage('背景图已更新')
   } catch (error) {
     if (error?.name !== 'AbortError') {
@@ -370,7 +459,7 @@ async function chooseBackgroundImage() {
 }
 
 async function applyRemoteBackground(url, options = {}) {
-  const { silent = false } = options
+  const { silent = false, persist = true } = options
   const validation = validateRemoteBackgroundUrl(url)
   if (!validation.valid) {
     if (!silent) {
@@ -380,13 +469,22 @@ async function applyRemoteBackground(url, options = {}) {
   }
 
   try {
-    await preloadRemoteImage(validation.url)
+    try {
+      const blob = await fetchRemoteBackgroundImage(validation.url)
+      await applyBackgroundBlob(blob)
+      await saveCachedRemoteBackgroundImage(validation.url, blob)
+    } catch {
+      await preloadImage(validation.url)
+      swapBackgroundImage(validation.url)
+    }
+
     backgroundRemoteUrl.value = validation.url
     backgroundSource.value = 'remote'
-    saveBackgroundRemoteUrl(validation.url)
-    saveBackgroundImageSource('remote')
-    applyBackgroundImage(validation.url)
     backgroundImageLabel.value = '网络背景图片'
+    if (persist) {
+      saveBackgroundRemoteUrl(validation.url)
+      saveBackgroundImageSource('remote')
+    }
     if (!silent) {
       showMessage('背景图已更新')
     }
@@ -407,11 +505,21 @@ async function changeBackgroundSource(source) {
   if (source === 'local') {
     backgroundSource.value = 'local'
     saveBackgroundImageSource('local')
+    const file = await loadBackgroundImageFile()
+    if (file) {
+      try {
+        await applyBackgroundFile(file, { persist: false })
+        return
+      } catch {
+        await clearBackgroundImageFile()
+      }
+    }
 
-    if (backgroundFileHandle.value) {
-      await applyBackgroundFromHandle(true)
-    } else {
-      applyBackgroundImage('')
+    const applied = backgroundFileHandle.value
+      ? await applyBackgroundFromHandle(true)
+      : false
+    if (backgroundFileHandle.value && !applied) {
+      showMessage('本地背景不可用，请重新选择图片', 'warning')
     }
     return
   }
@@ -419,38 +527,174 @@ async function changeBackgroundSource(source) {
   if (source === 'remote') {
     backgroundSource.value = 'remote'
     saveBackgroundImageSource('remote')
-
     if (backgroundRemoteUrl.value) {
+      const cachedImage = await loadCachedRemoteBackgroundImage(backgroundRemoteUrl.value)
+      if (cachedImage) {
+        try {
+          await applyBackgroundBlob(cachedImage)
+          backgroundSource.value = 'remote'
+          saveBackgroundImageSource('remote')
+          return
+        } catch {
+          await clearCachedRemoteBackgroundImage()
+        }
+      }
+
       const applied = await applyRemoteBackground(backgroundRemoteUrl.value, { silent: true })
       if (!applied) {
-        applyBackgroundImage('')
+        showMessage('网络背景不可用，请检查图片链接', 'warning')
       }
-    } else {
-      applyBackgroundImage('')
     }
     return
   }
 
   backgroundSource.value = 'none'
   saveBackgroundImageSource('none')
-  applyBackgroundImage('')
+  swapBackgroundImage('')
 }
 
 async function clearBackgroundImage() {
   if (backgroundSource.value === 'remote') {
     backgroundRemoteUrl.value = ''
     saveBackgroundRemoteUrl('')
+    await clearCachedRemoteBackgroundImage()
   } else {
     backgroundFileHandle.value = null
     backgroundImageLabel.value = ''
-    await clearBackgroundFileHandle()
+    await Promise.all([
+      clearBackgroundFileHandle(),
+      clearBackgroundImageFile(),
+    ])
     clearBackgroundImageMeta()
   }
 
   backgroundSource.value = 'none'
   saveBackgroundImageSource('none')
-  applyBackgroundImage('')
+  swapBackgroundImage('')
   showMessage('背景图已清空')
+}
+
+async function getBackgroundAssetForExport() {
+  if (backgroundSource.value === 'remote') {
+    return loadCachedRemoteBackgroundImage(backgroundRemoteUrl.value)
+  }
+  if (backgroundSource.value !== 'local') {
+    return null
+  }
+
+  const storedImage = await loadBackgroundImageFile()
+  if (storedImage) {
+    return storedImage
+  }
+  if (backgroundFileHandle.value?.getFile) {
+    const permission = await backgroundFileHandle.value.queryPermission?.({ mode: 'read' })
+    if (!permission || permission === 'granted') {
+      return backgroundFileHandle.value.getFile()
+    }
+  }
+  throw new Error('本地背景图片不可读取，请重新选择背景后再导出')
+}
+
+async function exportConfiguration() {
+  try {
+    const backgroundAsset = await getBackgroundAssetForExport()
+    const backup = await createConfigurationBackup({
+      webdavConfig: { ...config.value },
+      theme: { ...bookmarkTheme.value },
+      searchPageState: loadSearchPageState(),
+      background: {
+        source: backgroundSource.value,
+        remoteUrl: backgroundRemoteUrl.value,
+        label: backgroundImageLabel.value,
+      },
+      backgroundAsset,
+    })
+    downloadConfigurationBackup(backup)
+    showMessage('配置已导出，文件包含 WebDAV 凭据，请妥善保管', 'warning')
+  } catch (error) {
+    showMessage(`导出失败: ${error.message}`, 'error')
+  }
+}
+
+async function applyImportedConfiguration(backup) {
+  const importedBackground = backup.background || { source: 'none' }
+  const importedAsset = await configurationAssetToBlob(importedBackground.asset)
+  if (importedBackground.source === 'local' && !importedAsset) {
+    throw new Error('配置文件缺少本地背景图片数据')
+  }
+
+  const nextConfig = normalizeConfig({
+    ...config.value,
+    ...(backup.webdavConfig || {}),
+  })
+  await setChromeLocal({ [STORAGE_CONFIG_KEY]: nextConfig })
+  await sendChromeMessage({ action: 'updateAutoSync' })
+
+  bookmarkTheme.value = {
+    ...DEFAULT_BOOKMARK_THEME,
+    ...(backup.theme || {}),
+  }
+  bookmarkUiStore.saveTheme()
+  patchSearchPageState(backup.searchPageState || {})
+
+  await Promise.all([
+    clearBackgroundFileHandle(),
+    clearBackgroundImageFile(),
+    clearCachedRemoteBackgroundImage(),
+  ])
+  backgroundFileHandle.value = null
+  saveBackgroundRemoteUrl(importedBackground.remoteUrl || '')
+
+  if (importedBackground.source === 'local') {
+    const fileName = importedBackground.asset?.name || importedBackground.label || 'background-image'
+    const file = new File([importedAsset], fileName, {
+      type: importedBackground.asset?.type || importedAsset.type,
+    })
+    await saveBackgroundImageFile(file)
+    persistBackgroundImageMeta(fileName, importedBackground.label || fileName)
+  } else if (importedBackground.source === 'remote'
+    && importedBackground.remoteUrl
+    && importedAsset) {
+    await saveCachedRemoteBackgroundImage(importedBackground.remoteUrl, importedAsset)
+    clearBackgroundImageMeta()
+  } else {
+    clearBackgroundImageMeta()
+  }
+  saveBackgroundImageSource(importedBackground.source || 'none')
+}
+
+async function importConfiguration() {
+  let backup
+  try {
+    backup = await pickConfigurationBackup()
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      showMessage(`配置文件读取失败: ${error.message}`, 'error')
+    }
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      '导入会覆盖当前主题、背景、搜索和 WebDAV 配置，是否继续？',
+      '导入配置',
+      {
+        confirmButtonText: '继续导入',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
+
+  try {
+    await applyImportedConfiguration(backup)
+    showMessage('配置导入成功，页面即将重新加载')
+    setTimeout(() => window.location.reload(), 600)
+  } catch (error) {
+    showMessage(`导入失败: ${error.message}`, 'error')
+  }
 }
 
 function showJumpOverlay() {
@@ -603,22 +847,199 @@ async function initData() {
   backgroundSource.value = loadBackgroundImageSource()
   backgroundRemoteUrl.value = loadBackgroundRemoteUrl()
   backgroundImageLabel.value = loadBackgroundImageLabel()
-  backgroundFileHandle.value = await loadBackgroundFileHandle()
+  try {
+    backgroundFileHandle.value = await loadBackgroundFileHandle()
 
-  if (backgroundSource.value === 'remote' && backgroundRemoteUrl.value) {
-    const applied = await applyRemoteBackground(backgroundRemoteUrl.value, { silent: true })
-    if (!applied) {
+    if (backgroundSource.value === 'remote' && backgroundRemoteUrl.value) {
+      const cachedImage = await loadCachedRemoteBackgroundImage(backgroundRemoteUrl.value)
+      let restoredFromCache = false
+      if (cachedImage) {
+        try {
+          await applyBackgroundBlob(cachedImage)
+          restoredFromCache = true
+        } catch {
+          await clearCachedRemoteBackgroundImage()
+        }
+      }
+      if (!restoredFromCache) {
+        applyRemoteBackground(backgroundRemoteUrl.value, { silent: true })
+      }
+    } else if (backgroundSource.value === 'local') {
+      const localImage = await loadBackgroundImageFile()
+      if (localImage) {
+        await applyBackgroundFile(localImage, { persist: false })
+      } else {
+        await applyBackgroundFromHandle(true)
+      }
+    } else {
       backgroundSource.value = 'none'
-      saveBackgroundImageSource('none')
+      swapBackgroundImage('')
     }
-  } else if (backgroundSource.value === 'local' && backgroundFileHandle.value) {
-    await applyBackgroundFromHandle(true)
-  } else {
-    backgroundSource.value = 'none'
-    applyBackgroundImage('')
+  } catch (error) {
+    console.error('Failed to restore background image:', error)
+    swapBackgroundImage('')
   }
 
   recalcToolbarItems()
+}
+
+function showBookmarkContextMenu({ event, item: bookmark }) {
+  if (!bookmark) {
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  bookmarkContextTarget.value = bookmark
+  bookmarkContextMenuPoint.value = {
+    x: event.clientX,
+    y: event.clientY,
+  }
+  bookmarkContextMenuVisible.value = true
+}
+
+function openBookmarkEdit(bookmark) {
+  bookmarkEditTarget.value = bookmark
+  bookmarkEditDraft.value = {
+    title: bookmark.name || '',
+    url: bookmark.url || '',
+  }
+  bookmarkEditVisible.value = true
+}
+
+async function deleteBookmark(bookmark) {
+  const isFolder = !bookmark.url
+  try {
+    await ElMessageBox.confirm(
+      isFolder
+        ? `确定删除文件夹“${bookmark.name}”及其全部内容吗？此操作不可撤销。`
+        : `确定删除书签“${bookmark.name || bookmark.url}”吗？`,
+      isFolder ? '删除文件夹' : '删除书签',
+      {
+        confirmButtonText: isFolder ? '删除文件夹' : '删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
+
+  bookmarkActionLoading.value = true
+  try {
+    await removeChromeBookmark(bookmark)
+    showMessage(isFolder ? '文件夹已删除，页面将自动刷新' : '书签已删除，页面将自动刷新')
+  } catch (error) {
+    showMessage(`删除失败: ${error.message}`, 'error')
+  } finally {
+    bookmarkActionLoading.value = false
+  }
+}
+
+async function handleBookmarkContextAction(action) {
+  const bookmark = bookmarkContextTarget.value
+  if (!bookmark) {
+    return
+  }
+
+  try {
+    if (action === 'open' && bookmark.url) {
+      handleBookmarkNavigate(bookmark.url)
+    } else if (action === 'open-new-tab' && bookmark.url) {
+      await openBookmarkInNewTab(bookmark.url)
+    } else if (action === 'edit') {
+      openBookmarkEdit(bookmark)
+    } else if (action === 'delete') {
+      await deleteBookmark(bookmark)
+    } else if (action === 'create-folder' && !bookmark.url) {
+      await createBookmarkFolder(bookmark)
+    } else if (action === 'open-manager') {
+      await openChromeBookmarkManager()
+    }
+  } catch (error) {
+    showMessage(`操作失败: ${error.message}`, 'error')
+  }
+}
+
+async function createBookmarkFolder(parentBookmark) {
+  let folderName
+  try {
+    const result = await ElMessageBox.prompt(
+      `将在“${parentBookmark.name}”中创建子文件夹。`,
+      '新建文件夹',
+      {
+        confirmButtonText: '创建',
+        cancelButtonText: '取消',
+        inputValue: '新建文件夹',
+        inputPlaceholder: '请输入文件夹名称',
+        inputValidator: (value) => (value?.trim() ? true : '文件夹名称不能为空'),
+      },
+    )
+    folderName = result.value.trim()
+  } catch {
+    return
+  }
+
+  try {
+    await createChromeBookmarkFolder(parentBookmark, folderName)
+    showMessage('文件夹已创建，页面将自动刷新')
+  } catch (error) {
+    showMessage(`创建文件夹失败: ${error.message}`, 'error')
+  }
+}
+
+async function saveBookmarkEdit() {
+  const title = bookmarkEditDraft.value.title.trim()
+  const url = bookmarkEditDraft.value.url.trim()
+  if (!title || (bookmarkEditTarget.value?.url && !url)) {
+    showMessage(bookmarkEditTarget.value?.url ? '书签名称和网址不能为空' : '文件夹名称不能为空', 'warning')
+    return
+  }
+  if (bookmarkEditTarget.value?.url) {
+    try {
+      new URL(url)
+    } catch {
+      showMessage('书签网址格式不正确', 'warning')
+      return
+    }
+  }
+
+  bookmarkActionLoading.value = true
+  try {
+    const changes = bookmarkEditTarget.value?.url ? { title, url } : { title }
+    await updateChromeBookmark(bookmarkEditTarget.value, changes)
+    bookmarkEditVisible.value = false
+    showMessage('书签已修改，页面将自动刷新')
+  } catch (error) {
+    showMessage(`修改失败: ${error.message}`, 'error')
+  } finally {
+    bookmarkActionLoading.value = false
+  }
+}
+
+async function syncCurrentBrowserBookmarks() {
+  if (browserSyncing.value) {
+    return
+  }
+
+  browserSyncing.value = true
+  try {
+    const result = await sendChromeMessage({ action: 'syncChromeBookmarksNow' })
+    if (!result?.success) {
+      throw new Error(result?.error || '同步失败')
+    }
+    if (result.queued) {
+      showMessage('已有同步任务运行，本次同步已排队')
+    } else if (result.uploaded) {
+      showMessage('当前浏览器书签已同步并上传 WebDAV')
+    } else {
+      showMessage('浏览器书签已同步到页面；配置 WebDAV 后可同时上传', 'warning')
+    }
+  } catch (error) {
+    showMessage(`同步失败: ${error.message}`, 'error')
+  } finally {
+    browserSyncing.value = false
+  }
 }
 
 onMounted(async () => {
@@ -667,9 +1088,26 @@ body {
 }
 
 .page-shell {
+  position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.background-image-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.background-image-layer.is-visible {
+  opacity: 1;
 }
 
 .bookmark-bar {
@@ -706,10 +1144,20 @@ body {
 
 .other-bookmarks-item {
   margin-left: auto;
+  order: 2;
 }
 
 .overflow-bookmarks-button {
   padding: 0 12px;
+  order: 1;
+}
+
+.bar-scroll.has-overflow-bookmarks .overflow-bookmarks-button {
+  margin-left: auto;
+}
+
+.bar-scroll.has-overflow-bookmarks .other-bookmarks-item {
+  margin-left: 0;
 }
 
 .bar-empty {
@@ -722,9 +1170,13 @@ body {
   text-overflow: ellipsis;
 }
 
-.bar-right {
+.floating-actions {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
   display: flex;
   align-items: center;
+  z-index: 60;
 }
 
 .bar-item {
@@ -810,6 +1262,8 @@ body {
 }
 
 .main-stage {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   display: flex;
@@ -1213,6 +1667,11 @@ body {
 
 .action-menu-item:hover {
   background: rgba(231, 241, 243, 0.88);
+}
+
+.action-menu-item:disabled {
+  opacity: 0.58;
+  cursor: wait;
 }
 
 .bookmark-popover-transition-enter-active,

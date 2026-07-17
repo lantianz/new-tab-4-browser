@@ -23,7 +23,8 @@
             <button
               class="menu-row menu-folder"
               :class="{ 'is-active': activeFolderId === item.id }"
-              :title="buildBookmarkTitle(item)">
+              :title="buildBookmarkTitle(item)"
+              @contextmenu.prevent="emit('bookmark-contextmenu', { event: $event, item })">
               <el-icon class="menu-icon"><Folder /></el-icon>
               <span class="menu-text">{{ item.name }}</span>
               <span class="menu-arrow">›</span>
@@ -31,17 +32,19 @@
           </template>
           <BookmarkMenu
             :items="item.children"
-            @bookmark-link-click="emit('bookmark-link-click', $event)" />
+            @bookmark-link-click="emit('bookmark-link-click', $event)"
+            @bookmark-contextmenu="forwardBookmarkContextMenu" />
         </el-popover>
         <a
           v-else
           class="menu-row menu-link"
           :href="item.url"
           :title="buildBookmarkTitle(item)"
-          @click.prevent="emit('bookmark-link-click', item.url)">
+          @click.prevent="emit('bookmark-link-click', item.url)"
+          @contextmenu.prevent="emit('bookmark-contextmenu', { event: $event, item })">
           <img
-            v-if="item.icon"
-            :src="item.icon"
+            v-if="getBookmarkFaviconUrl(item)"
+            :src="getBookmarkFaviconUrl(item)"
             class="menu-favicon"
             alt="" />
           <el-icon
@@ -59,14 +62,19 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { Folder, Link } from '@element-plus/icons-vue'
+import { getBookmarkFaviconUrl } from '@/features/bookmarks/services/bookmarkFaviconService'
 import { buildBookmarkTitle } from '@/features/bookmarks/services/bookmarkTitleService'
 
-const emit = defineEmits(['bookmark-link-click'])
+const emit = defineEmits(['bookmark-link-click', 'bookmark-contextmenu'])
 
 const activeFolderId = ref(null)
 
 function handleFolderVisibleChange(id, visible) {
   activeFolderId.value = visible ? id : activeFolderId.value === id ? null : activeFolderId.value
+}
+
+function forwardBookmarkContextMenu(payload) {
+  emit('bookmark-contextmenu', payload)
 }
 
 const props = defineProps({

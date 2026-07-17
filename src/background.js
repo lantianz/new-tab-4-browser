@@ -1,8 +1,17 @@
-import { parseBookmarks } from './utils/bookmark.js'
+import {
+  chromeBookmarksToTree,
+  parseBookmarks,
+  serializeChromeBookmarks,
+} from './utils/bookmark.js'
 
 const STORAGE_CONFIG_KEY = 'new-tab-bookmarker-webdav-config'
 const STORAGE_CACHE_KEY = 'new-tab-bookmarker-bookmark-cache'
 const AUTO_SYNC_ALARM_NAME = 'new-tab-bookmarker-auto-sync'
+
+let bookmarkSyncTimer = null
+let bookmarkSyncInFlight = false
+let bookmarkSyncQueued = false
+let bookmarkImportInProgress = false
 
 function hasCompleteConfig(config) {
   return Boolean(
@@ -15,6 +24,15 @@ function hasCompleteConfig(config) {
 
 function normalizeRemoteUrl(config) {
   return `${config.url.replace(/\/+$/, '')}/${config.remoteFile.replace(/^\/+/, '')}`
+}
+
+function encodeBasicAuth(username, password) {
+  const bytes = new TextEncoder().encode(`${username}:${password}`)
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  return `Basic ${btoa(binary)}`
 }
 
 function getAutoSyncPeriodMinutes(config = {}) {
@@ -40,7 +58,7 @@ async function syncBookmarksFromWebDav() {
 
   const response = await fetch(normalizeRemoteUrl(config), {
     headers: {
-      Authorization: `Basic ${btoa(`${config.username}:${config.password}`)}`,
+      Authorization: encodeBasicAuth(config.username, config.password),
     },
   })
 
@@ -57,6 +75,65 @@ async function syncBookmarksFromWebDav() {
     },
   })
   return { success: true }
+}
+
+async function syncBookmarksFromChrome() {
+  if (bookmarkSyncInFlight) {
+    bookmarkSyncQueued = true
+    return { success: true, queued: true }
+  }
+
+  bookmarkSyncInFlight = true
+  try {
+    const chromeTree = await chrome.bookmarks.getTree()
+    const tree = chromeBookmarksToTree(chromeTree)
+    await chrome.storage.local.set({
+      [STORAGE_CACHE_KEY]: {
+        tree,
+        updatedAt: new Date().toISOString(),
+        source: 'chrome',
+      },
+    })
+
+    const result = await chrome.storage.local.get([STORAGE_CONFIG_KEY])
+    const config = result[STORAGE_CONFIG_KEY]
+    if (!hasCompleteConfig(config)) {
+      return { success: true, uploaded: false, reason: 'incomplete-config' }
+    }
+
+    const response = await fetch(normalizeRemoteUrl(config), {
+      method: 'PUT',
+      headers: {
+        Authorization: encodeBasicAuth(config.username, config.password),
+        'Content-Type': 'text/html; charset=utf-8',
+      },
+      body: serializeChromeBookmarks(chromeTree),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    return { success: true, uploaded: true }
+  } finally {
+    bookmarkSyncInFlight = false
+    if (bookmarkSyncQueued) {
+      bookmarkSyncQueued = false
+      queueChromeBookmarkSync()
+    }
+  }
+}
+
+function queueChromeBookmarkSync() {
+  if (bookmarkImportInProgress) {
+    return
+  }
+
+  clearTimeout(bookmarkSyncTimer)
+  bookmarkSyncTimer = setTimeout(() => {
+    syncBookmarksFromChrome().catch((error) => {
+      console.error('Failed to sync Chrome bookmarks:', error)
+    })
+  }, 350)
 }
 
 async function updateAutoSyncAlarm() {
@@ -97,6 +174,20 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   })
 })
 
+chrome.bookmarks.onImportBegan.addListener(() => {
+  bookmarkImportInProgress = true
+  clearTimeout(bookmarkSyncTimer)
+})
+chrome.bookmarks.onCreated.addListener(queueChromeBookmarkSync)
+chrome.bookmarks.onRemoved.addListener(queueChromeBookmarkSync)
+chrome.bookmarks.onChanged.addListener(queueChromeBookmarkSync)
+chrome.bookmarks.onMoved.addListener(queueChromeBookmarkSync)
+chrome.bookmarks.onChildrenReordered.addListener(queueChromeBookmarkSync)
+chrome.bookmarks.onImportEnded.addListener(() => {
+  bookmarkImportInProgress = false
+  queueChromeBookmarkSync()
+})
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.action === 'updateAutoSync') {
     updateAutoSyncAlarm()
@@ -107,6 +198,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.action === 'syncBookmarksNow') {
     syncBookmarksFromWebDav()
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ success: false, error: error.message }))
+    return true
+  }
+
+  if (message?.action === 'syncChromeBookmarksNow') {
+    syncBookmarksFromChrome()
       .then((result) => sendResponse(result))
       .catch((error) => sendResponse({ success: false, error: error.message }))
     return true
